@@ -8,27 +8,32 @@
   let token = "";
 
   registerButton.addEventListener("click", () => {
-    const username = document.getElementById("register-username").value;
-    const password = document.getElementById("register-password").value;
-    const email = document.getElementById("register-email").value;
-    const role = document.getElementById("register-role").value;
+    document.getElementById("register-button").addEventListener("click", () => {
+      const username = document.getElementById("register-username").value;
+      const password = document.getElementById("register-password").value;
+      const email = document.getElementById("register-email").value;
+      const role = document.getElementById("register-role").value;
 
-    fetch(`${apiBaseUrl}/auth/register`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ username, password, email, role }),
-    })
-      .then(() => {
-        document.getElementById("register-message").textContent =
-          "Registration successful";
+      fetch(`${apiBaseUrl}/auth/register`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ username, password, email, role }),
       })
-      .catch((error) => {
-        console.error("Error:", error);
-        document.getElementById("register-message").textContent =
-          "Registration failed";
-      });
+        .then((response) => {
+          if (!response.ok) {
+            return response.json().then((errorData) => {
+              throw new Error(errorData);
+            });
+          }
+          return response.json();
+        })
+        .then(() => {
+          document.getElementById("register-message").textContent =
+            "Registration successful";
+        });
+    });
   });
 
   loginButton.addEventListener("click", () => {
@@ -61,6 +66,29 @@
       .catch((error) => {
         console.error("Error:", error);
         document.getElementById("login-message").textContent = "Login failed";
+      });
+  });
+  const deleteButton = document.getElementById("delete-button");
+  deleteButton.addEventListener("click", () => {
+    const userId = document.getElementById("delete-id").value;
+
+    fetch(`${apiBaseUrl}/auth/${userId}`, {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+    })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error("Delete failed");
+        }
+        document.getElementById("delete-message").textContent =
+          "User deleted successfully";
+      })
+      .catch((error) => {
+        console.error("Error:", error);
+        document.getElementById("delete-message").textContent = "Delete failed";
       });
   });
 

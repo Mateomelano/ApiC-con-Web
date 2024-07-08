@@ -1,49 +1,62 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Configuration;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using System;
-using System.Collections.Generic;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using WebApiWithJwt.Models;
 
 [Route("api/[controller]")]
 [ApiController]
 public class AuthController : ControllerBase
 {
+    private readonly AppDbContext _context;
     private readonly string _key;
 
-    // Simulación de almacenamiento de usuarios en memoria
-    private static Dictionary<string, (string Hash, string Id, string Email, string Role)> users =
-        new Dictionary<string, (string Hash, string Id, string Email, string Role)>();
-
-    public AuthController(IConfiguration config)
+    public AuthController(AppDbContext context, IConfiguration config)
     {
+        _context = context;
         _key = config.GetValue<string>("Jwt:Key");
     }
 
     [HttpPost("register")]
-    public IActionResult Register([FromBody] UserRegister user)
+    public async Task<IActionResult> Register([FromBody] UserRegister user)
     {
-        if (users.ContainsKey(user.Username))
+        if (await _context.Users.AnyAsync(u => u.Username == user.Username))
+            return Conflict("Username already exists");
+        if (await _context.Users.AnyAsync(u => u.Username == user.Username))
             return Conflict("Username already exists");
 
+        if (user.Password.Length <= 8)
+            return BadRequest("Password must be longer than 8 characters");
+
+        if (user.Role != "Administrador" && user.Role != "Usuario")
+            return BadRequest("Role must be either 'Administrador' or 'Usuario'");
+
+
         var hashedPassword = PasswordHasher.HashPassword(user.Password);
-        users[user.Username] = (hashedPassword, Guid.NewGuid().ToString(), user.Email, user.Role);
+
+        var newUser = new User
+        {
+            Username = user.Username,
+            PasswordHash = hashedPassword,
+            Email = user.Email,
+            Role = user.Role
+        };
+
+        _context.Users.Add(newUser);
+        await _context.SaveChangesAsync();
 
         return Ok();
     }
 
     [HttpPost("login")]
-    public IActionResult Login([FromBody] UserLogin user)
+    public async Task<IActionResult> Login([FromBody] UserLogin user)
     {
-        if (user == null || !users.ContainsKey(user.Username) ||
-            !PasswordHasher.VerifyPassword(users[user.Username].Hash, user.Password))
+        var dbUser = await _context.Users.SingleOrDefaultAsync(u => u.Username == user.Username);
+        if (dbUser == null || !PasswordHasher.VerifyPassword(dbUser.PasswordHash, user.Password))
             return Unauthorized();
-
-        var userId = users[user.Username].Id;
-        var email = users[user.Username].Email;
-        var role = users[user.Username].Role;
 
         var tokenHandler = new JwtSecurityTokenHandler();
         var key = Encoding.ASCII.GetBytes(_key);
@@ -51,23 +64,39 @@ public class AuthController : ControllerBase
         {
             Subject = new ClaimsIdentity(new[]
             {
-                new Claim(ClaimTypes.Name, user.Username),
-                new Claim("UserId", userId),
-                new Claim(ClaimTypes.Email, email),
-                new Claim(ClaimTypes.Role, role)
+                new Claim(ClaimTypes.Name, dbUser.Username),
+                new Claim("UserId", dbUser.Id.ToString()),
+                new Claim(ClaimTypes.Email, dbUser.Email),
+                new Claim(ClaimTypes.Role, dbUser.Role)
             }),
             Expires = DateTime.UtcNow.AddHours(1),
             SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
         };
-
-        // Microsoft.IdentityModel.Json.JsonConvert
-        //TypeLoadException: Could not load type 'Microsoft.IdentityModel.Json.JsonConvert' from assembly 'Microsoft.IdentityModel.Tokens, Version=7.6.2.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35'.
 
         var token = tokenHandler.CreateToken(tokenDescriptor);
         var tokenString = tokenHandler.WriteToken(token);
 
         return Ok(new { Token = tokenString });
     }
+
+    // DELETE: api/users/{id}
+    [HttpDelete("{id}")]
+    [Authorize(Roles = "Administrador")] 
+    public async Task<IActionResult> DeleteUser(int id)
+    {
+        var user = await _context.Users.FindAsync(id);
+        if (user == null)
+        {
+            return NotFound(new { Message = $"User with ID {id} does not exist" });
+        }
+
+        _context.Users.Remove(user);
+        await _context.SaveChangesAsync();
+
+        return NoContent();
+    }
+
+
 }
 
 public class UserRegister
