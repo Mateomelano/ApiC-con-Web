@@ -1,4 +1,7 @@
-﻿namespace WebApiWithJwt.Models
+﻿using Microsoft.EntityFrameworkCore;
+using WebApiWithJwt.Models;
+
+namespace WebApiWithJwt.Models
 {
     public class User
     {
@@ -8,4 +11,14 @@
         public string Email { get; set; }
         public string Role { get; set; }
     }
+}
+
+public class AppDbContext : DbContext
+{
+    public AppDbContext(DbContextOptions<AppDbContext> options)
+        : base(options)
+    {
+    }
+
+    public DbSet<User> Users { get; set; }
 }

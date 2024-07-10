@@ -81,7 +81,7 @@ public class AuthController : ControllerBase
 
     // DELETE: api/users/{id}
     [HttpDelete("{id}")]
-    [Authorize(Roles = "Administrador")] 
+    [Authorize]
     public async Task<IActionResult> DeleteUser(int id)
     {
         var user = await _context.Users.FindAsync(id);

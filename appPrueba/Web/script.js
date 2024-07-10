@@ -24,7 +24,7 @@
         .then((response) => {
           if (!response.ok) {
             return response.json().then((errorData) => {
-              throw new Error(errorData);
+              throw new Error(errorData.message || "Registration failed");
             });
           }
           return response.json();
@@ -32,6 +32,10 @@
         .then(() => {
           document.getElementById("register-message").textContent =
             "Registration successful";
+        })
+        .catch((error) => {
+          document.getElementById("register-message").textContent =
+            "Registration failed, la contraseña debe tener 8 caracteres, y el rol debe ser administrador o usuario";
         });
     });
   });
@@ -55,7 +59,6 @@
       })
       .then((data) => {
         if (data.token) {
-          debugger;
           token = data.token;
           document.getElementById("login-message").textContent =
             "Login successful";
@@ -88,7 +91,8 @@
       })
       .catch((error) => {
         console.error("Error:", error);
-        document.getElementById("delete-message").textContent = "Delete failed";
+        document.getElementById("delete-message").textContent =
+          "Delete failed or Access denied";
       });
   });
 
@@ -111,9 +115,21 @@
         console.log("Response data:", data); // Verifica la estructura de la respuesta
 
         if (Array.isArray(data)) {
-          document.getElementById(
-            "protected-message"
-          ).textContent = `Values: ${data.join(", ")}`;
+          let tableHTML =
+            "<table><tr><th>ID</th><th>Username</th><th>Email</th><th>Role</th></tr>";
+
+          data.forEach((user) => {
+            tableHTML += `<tr>
+              <td>${user.id}</td>
+              <td>${user.username}</td>
+              <td>${user.email}</td>
+              <td>${user.role}</td>
+            </tr>`;
+          });
+
+          tableHTML += "</table>";
+
+          document.getElementById("protected-message").innerHTML = tableHTML;
         } else {
           throw new Error("Unexpected response format");
         }
